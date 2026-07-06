@@ -1,8 +1,14 @@
-# results & data artifacts
+# outputs
 results/
-data/
-*.nii
-*.nii.gz
+
+# regenerable data (the server re-creates these; source data below IS tracked):
+#   - simulated stacks (simulate_batch.py)  - phantom  - registered copies
+data/phantom/
+data/nigerian_reg/
+data/**/stack_*.nii.gz
+data/**/stack_*.json
+# NOTE: source data IS tracked and transfers with the repo:
+#   data/brats/<ID>/gt.nii.gz, data/nigerian/<sub>/*.nii.gz + sidecars, subjects.txt
 
 # python
 __pycache__/
