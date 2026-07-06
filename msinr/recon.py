@@ -9,6 +9,7 @@ the head-to-head comparison clean.
 from __future__ import annotations
 
 import random
+from contextlib import nullcontext
 
 import numpy as np
 import torch
@@ -97,7 +98,24 @@ def reconstruct_inr(stacks, gt: Volume | None, cfg: dict, optimizer: str,
         sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=iters, eta_min=1e-6)
 
     fwd = MultiStackForward(normalizer.center, normalizer.half_extent, device=device)
-    field = lambda pts: model(pts).squeeze(-1)
+
+    # Speedups for the matmul-bound MLP (training only; inference/rank-tracking stay
+    # on the fp32 base model). Batch shapes are constant across iters, so torch.compile
+    # does not recompile. bf16 AMP needs no GradScaler.
+    is_cuda = device.startswith("cuda")
+    use_amp = bool(cfg.get("amp", True)) and is_cuda
+    use_compile = bool(cfg.get("compile", True)) and is_cuda
+    forward_model = model
+    if use_compile:
+        try:
+            forward_model = torch.compile(model)
+        except Exception as e:                       # pragma: no cover
+            print(f"[recon] torch.compile disabled ({e})")
+            forward_model, use_compile = model, False
+    field = lambda pts: forward_model(pts).squeeze(-1)
+
+    def amp_ctx():
+        return torch.autocast("cuda", dtype=torch.bfloat16) if use_amp else nullcontext()
 
     prof = Profiler(device)
     history = []
@@ -106,9 +124,10 @@ def reconstruct_inr(stacks, gt: Volume | None, cfg: dict, optimizer: str,
             model.train()
             opt.zero_grad(set_to_none=True)
             batch = sampler.sample()
-            preds = fwd.predict_batch(field, [(c, o, w) for c, o, w, _ in batch])
-            loss = sum(F.mse_loss(p, t) for p, (_, _, _, t) in zip(preds, batch))
-            loss = loss / len(stack_tensors)
+            with amp_ctx():
+                preds = fwd.predict_batch(field, [(c, o, w) for c, o, w, _ in batch])
+                loss = sum(F.mse_loss(p, t) for p, (_, _, _, t) in zip(preds, batch))
+                loss = loss / len(stack_tensors)
             loss.backward()
             opt.step()
             if sched is not None:
@@ -125,6 +144,8 @@ def reconstruct_inr(stacks, gt: Volume | None, cfg: dict, optimizer: str,
     prof.add("num_parameters", count_parameters(model))
     prof.add("num_iters", iters)
     prof.add("intensity_scale", intensity_scale)
+    prof.add("amp_bf16", use_amp)
+    prof.add("torch_compile", use_compile)
     prof.throughput("inference", int(np.prod(grid.shape)), key="infer_voxels_per_s")
     prof.add("history", history)
 

@@ -38,17 +38,33 @@ def main():
     ap.add_argument("--config", default="configs/experiment/brats.yaml")
     ap.add_argument("--only", nargs="*", help="Restrict to these method names.")
     ap.add_argument("--skip-aggregate", action="store_true")
+    ap.add_argument("--subjects-root", default=None,
+                    help="Auto-discover subjects: every <dir>/*/ with gt.nii.gz + stacks.")
+    ap.add_argument("--n", type=int, default=None, help="Limit auto-discovered subjects.")
+    ap.add_argument("--results-dir", default=None, help="Override results_dir from config.")
     args = ap.parse_args()
 
     with open(args.config) as f:
         bench = yaml.safe_load(f)
     env = bench.get("env", "dev")
-    results_dir = bench["results_dir"]
+    results_dir = args.results_dir or bench["results_dir"]
     os.makedirs(results_dir, exist_ok=True)
 
     methods = bench["methods"]
     if args.only:
         methods = [m for m in methods if m["name"] in args.only]
+
+    if args.subjects_root:
+        import glob
+        subs = sorted(d for d in glob.glob(os.path.join(args.subjects_root, "*"))
+                      if os.path.exists(os.path.join(d, "gt.nii.gz"))
+                      and glob.glob(os.path.join(d, "stack_*.nii.gz")))
+        if args.n:
+            subs = subs[: args.n]
+        bench["subjects"] = [{"name": os.path.basename(d),
+                              "stacks": d, "gt": os.path.join(d, "gt.nii.gz")}
+                             for d in subs]
+        print(f"Auto-discovered {len(bench['subjects'])} subjects under {args.subjects_root}")
 
     log = []
     for subject in bench["subjects"]:

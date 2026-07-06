@@ -16,6 +16,9 @@ methods:
   - name: classical_srr
     run: methods/classical_srr/run.py
     set: {reg_lambda: 0.1, cg_maxiter: 200}
+  - name: trilinear
+    run: methods/trilinear/run.py
+    set: {}
   - name: nesvor
     run: methods/nesvor/run.py
     set: {output_resolution: 1.0}

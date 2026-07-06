@@ -1,0 +1,20 @@
+# Two-orthogonal-stack simulation (axial + sagittal) -- matches the common Nigerian
+# 0.3T regime where only 2 orientations are acquired. Harder than 3 orthogonal.
+in_plane_mm: 1.0
+thickness_mm: 5.0
+snr: 20.0
+
+psf:
+  mode: gaussian
+  n_through: 7
+  n_in: 1
+  extent_sigma: 1.5
+
+motion:
+  enabled: true
+  max_rot_deg: 6.0
+  max_trans_mm: 3.0
+
+stacks:
+  - {orientation: axial}
+  - {orientation: sagittal}

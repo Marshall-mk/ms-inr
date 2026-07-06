@@ -1,0 +1,6 @@
+# Trilinear baseline (CPU). No torch or Muon required.
+numpy
+scipy
+nibabel
+scikit-image
+pyyaml

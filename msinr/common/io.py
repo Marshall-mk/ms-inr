@@ -59,9 +59,20 @@ def load_stack(path: str, name: str | None = None) -> Stack:
 
 
 def load_stacks_dir(stacks_dir: str) -> list[Stack]:
-    """Load every .nii/.nii.gz in a directory as a Stack (sorted by name)."""
-    files = [f for f in os.listdir(stacks_dir)
-             if f.endswith((".nii", ".nii.gz"))]
+    """Load the stack NIfTIs in a directory as Stacks (sorted by name).
+
+    Excludes the ground-truth volume (``gt.nii[.gz]``) and any reconstruction
+    output (``recon*.nii[.gz]``) so the GT can safely live alongside the stacks
+    without leaking into the observations.
+    """
+    files = []
+    for f in os.listdir(stacks_dir):
+        if not f.endswith((".nii", ".nii.gz")):
+            continue
+        stem = _stem(f).lower()
+        if stem == "gt" or stem.startswith("recon"):
+            continue
+        files.append(f)
     files.sort()
     return [load_stack(os.path.join(stacks_dir, f)) for f in files]
 

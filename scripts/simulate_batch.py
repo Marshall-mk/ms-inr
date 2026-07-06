@@ -25,10 +25,19 @@ def main():
     ap.add_argument("--n", type=int, default=None, help="limit to first N subjects")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--overwrite", action="store_true")
+    ap.add_argument("--set", nargs="*", default=[], metavar="k=v",
+                    help="Override top-level sim keys, e.g. --set thickness_mm=6 snr=10")
     args = ap.parse_args()
 
     with open(args.config) as f:
         cfg = yaml.safe_load(f)
+    for kv in args.set:
+        k, _, v = kv.partition("=")
+        try:
+            v = float(v) if "." in v else int(v)
+        except ValueError:
+            pass
+        cfg[k] = v
     subj_dirs = sorted(d for d in glob.glob(os.path.join(args.root, "*"))
                        if os.path.exists(os.path.join(d, "gt.nii.gz")))
     if args.n:

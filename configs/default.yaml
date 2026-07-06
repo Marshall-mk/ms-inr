@@ -28,6 +28,14 @@ weight_decay: 0.0
 muon_weight_decay: 0.0
 scheduler: cosine          # cosine | none
 
+# INR training speedups (CUDA only; ignored on CPU). Training forward runs in bf16;
+# inference + rank tracking stay fp32 on the base model.
+# amp=true is ~2.7-4.4x faster but costs ~0.5 dB PSNR and slightly handicaps ONLY the INR
+# (classical is unaffected) -> keep OFF for headline paper numbers, flip on via
+# `--set amp=true` for fast exploratory/robustness sweeps.
+amp: false                 # bf16 autocast for the MLP matmuls
+compile: false             # torch.compile is SLOWER on GB10 (few SMs -> Inductor overhead)
+
 # intensity normalization (raw MRI values -> ~[0,1])
 normalize_stacks: global   # global | per_stack | none  (per_stack for real multi-scanner)
 normalize_q: 0.99
