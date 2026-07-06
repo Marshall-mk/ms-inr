@@ -1,0 +1,133 @@
+"""Shared INR reconstruction driver used by the proposed method and the ablation.
+
+``reconstruct_inr`` fits a coordinate MLP to the multi-stack observations through
+the differentiable PSF forward model, then samples the trained field on the target
+HR grid. The only difference between the proposed method and its ablation is the
+``optimizer`` field ("muon" vs "adam"); everything else is identical, which makes
+the head-to-head comparison clean.
+"""
+from __future__ import annotations
+
+import random
+
+import numpy as np
+import torch
+import torch.nn.functional as F
+
+from .common.contracts import Volume, GridSpec, ReconResult
+from .common.geometry import voxel_grid_world, CoordNormalizer
+from .common.profiling import Profiler, count_parameters
+from .forward.multistack import MultiStackForward
+from .models.inr import build_inr
+from .models.muon_setup import build_optimizer
+from .data.dataset import (prepare_stack_tensors, MultiStackSampler,
+                           recon_grid_from_stacks, normalize_stack_tensors)
+
+
+def set_seed(seed: int):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+
+def sample_field_on_grid(model, normalizer: CoordNormalizer, grid: GridSpec,
+                         device: str, chunk: int = 262144) -> np.ndarray:
+    """Evaluate the INR on every voxel of ``grid`` -> (X,Y,Z) numpy array."""
+    world = voxel_grid_world(grid.shape, grid.affine)          # (P,3)
+    norm = normalizer.to_norm(world)
+    norm_t = torch.as_tensor(norm, dtype=torch.float32, device=device)
+    out = torch.empty(norm_t.shape[0], device=device)
+    model.eval()
+    with torch.no_grad():
+        for i in range(0, norm_t.shape[0], chunk):
+            out[i:i + chunk] = model(norm_t[i:i + chunk]).squeeze(-1)
+    return out.reshape(grid.shape).cpu().numpy()
+
+
+def _rank_snapshot(model) -> dict:
+    if not hasattr(model, "get_detailed_matrix_info"):
+        return {}
+    infos = model.get_detailed_matrix_info()["layer_infos"]
+    return {
+        "stable_rank": [round(i["stable_rank"], 4) for i in infos],
+        "effective_rank": [round(i["effective_rank"], 4) for i in infos],
+        "spectral_norm": [round(i["spectral_norm"], 4) for i in infos],
+    }
+
+
+def reconstruct_inr(stacks, gt: Volume | None, cfg: dict, optimizer: str,
+                    device: str | None = None) -> ReconResult:
+    device = device or cfg.get("device", "cuda")
+    if device.startswith("cuda") and not torch.cuda.is_available():
+        device = "cpu"
+    set_seed(cfg.get("seed", 42))
+
+    # target grid + shared coordinate frame
+    grid = GridSpec.from_volume(gt) if gt is not None \
+        else recon_grid_from_stacks(stacks, iso_mm=cfg.get("iso_mm", 1.0))
+    normalizer = CoordNormalizer.from_grid(grid.shape, grid.affine,
+                                           pad_frac=cfg.get("pad_frac", 0.05))
+
+    stack_tensors = prepare_stack_tensors(
+        stacks, device=device, foreground_only=cfg.get("foreground_only", True))
+    # normalize intensities to ~[0,1] so the phantom-tuned optimization transfers
+    # to raw-valued MRI; rescale the reconstruction back afterwards.
+    intensity_scale = normalize_stack_tensors(
+        stack_tensors, mode=cfg.get("normalize_stacks", "global"),
+        q=cfg.get("normalize_q", 0.99))
+    sampler = MultiStackSampler(stack_tensors, cfg.get("batch_per_stack", 4096))
+
+    model = build_inr(
+        cfg.get("model", "relu_ffn"), input_dim=3, output_dim=1,
+        hidden_dim=cfg.get("hidden_dim", 256), num_layers=cfg.get("num_layers", 4),
+        sigma=cfg.get("sigma", 6.0), num_freqs=cfg.get("num_freqs", 10),
+        omega=cfg.get("omega", 30.0),
+        mapping_size=cfg.get("mapping_size", 128)).to(device)
+
+    opt = build_optimizer(
+        model, optimizer, lr=cfg.get("lr", 1e-3), muon_lr=cfg.get("muon_lr", 1e-2),
+        weight_decay=cfg.get("weight_decay", 0.0),
+        muon_weight_decay=cfg.get("muon_weight_decay", 0.0))
+
+    iters = cfg.get("iters", 3000)
+    sched = None
+    if cfg.get("scheduler", "cosine") == "cosine":
+        sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=iters, eta_min=1e-6)
+
+    fwd = MultiStackForward(normalizer.center, normalizer.half_extent, device=device)
+    field = lambda pts: model(pts).squeeze(-1)
+
+    prof = Profiler(device)
+    history = []
+    with prof.section("reconstruct"):
+        for it in range(iters):
+            model.train()
+            opt.zero_grad(set_to_none=True)
+            batch = sampler.sample()
+            preds = fwd.predict_batch(field, [(c, o, w) for c, o, w, _ in batch])
+            loss = sum(F.mse_loss(p, t) for p, (_, _, _, t) in zip(preds, batch))
+            loss = loss / len(stack_tensors)
+            loss.backward()
+            opt.step()
+            if sched is not None:
+                sched.step()
+            if it % cfg.get("log_every", 100) == 0 or it == iters - 1:
+                history.append({"iter": it, "loss": float(loss.detach()),
+                                **_rank_snapshot(model)})
+
+    with prof.section("inference"):
+        recon = sample_field_on_grid(model, normalizer, grid, device,
+                                     chunk=cfg.get("infer_chunk", 262144))
+    recon = recon * intensity_scale     # back to input intensity units
+
+    prof.add("num_parameters", count_parameters(model))
+    prof.add("num_iters", iters)
+    prof.add("intensity_scale", intensity_scale)
+    prof.throughput("inference", int(np.prod(grid.shape)), key="infer_voxels_per_s")
+    prof.add("history", history)
+
+    vol = Volume(data=recon, affine=grid.affine, name=f"recon_{optimizer}")
+    return ReconResult(volume=vol, method=f"inr_{optimizer}", config=dict(cfg),
+                       profile=prof.summary())

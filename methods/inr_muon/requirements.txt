@@ -1,0 +1,8 @@
+# Proposed method (rank-optimized INR). torch is provided by the `dev` conda env.
+numpy
+scipy
+nibabel
+scikit-image
+pyyaml
+# Muon optimizer (core of this method):
+#   pip install "git+https://github.com/KellerJordan/Muon"

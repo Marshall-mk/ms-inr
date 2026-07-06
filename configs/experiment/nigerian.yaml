@@ -1,0 +1,27 @@
+# Real Nigerian anisotropic multi-stack reconstruction (NO ground truth).
+# Real 0.3T/1.5T T2 stacks in 2-3 orientations, ~7-8mm slice thickness. Uses
+# per-stack intensity normalization (multi-scanner scales) and a grid derived from
+# the union of stack FOVs (no GT grid). nesvor omitted here (optional).
+results_dir: results/nigerian
+env: dev
+
+methods:
+  - name: inr_muon
+    run: methods/inr_muon/run.py
+    config: configs/default.yaml
+    set: {normalize_stacks: per_stack, iso_mm: 1.0}
+  - name: inr_adam
+    run: methods/inr_adam/run.py
+    config: configs/default.yaml
+    set: {normalize_stacks: per_stack, iso_mm: 1.0}
+  - name: classical_srr
+    run: methods/classical_srr/run.py
+    set: {reg_lambda: 0.05, cg_maxiter: 200, normalize_stacks: per_stack, iso_mm: 1.0}
+
+# Subjects with all 3 orthogonal T2 orientations (best-conditioned). Others (axial+
+# sagittal only) can be added but are 2-stack.
+subjects:
+  - {name: sub65, stacks: data/nigerian/sub65}
+  - {name: sub80, stacks: data/nigerian/sub80}
+  - {name: sub79, stacks: data/nigerian/sub79}
+  - {name: sub81, stacks: data/nigerian/sub81}

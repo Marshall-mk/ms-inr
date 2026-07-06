@@ -1,0 +1,22 @@
+# results & data artifacts
+results/
+data/
+*.nii
+*.nii.gz
+
+# python
+__pycache__/
+*.pyc
+*.egg-info/
+.ipynb_checkpoints/
+.venv/
+build/
+dist/
+
+# wandb / logs
+wandb/
+*.log
+
+# os
+.DS_Store
+.claude/

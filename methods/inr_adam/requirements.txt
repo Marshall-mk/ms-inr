@@ -1,0 +1,6 @@
+# Ablation baseline (Adam-INR). torch from the `dev` conda env; no Muon needed.
+numpy
+scipy
+nibabel
+scikit-image
+pyyaml

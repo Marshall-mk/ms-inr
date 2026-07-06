@@ -1,0 +1,38 @@
+# Canonical reconstruction config (BraTS / Nigerian / real brain volumes).
+# The INR must be DEEP: 6 layers @ hidden 512 (~1.3M params). Shallow nets cap
+# ~19dB on a 240^3 brain (low-frequency bias); depth > width. Raw MRI intensities
+# are normalized to ~[0,1] for stable optimization. Muon is expected to help most
+# in exactly this deeper, rank-limited regime.
+#
+# For the tiny 48^3 smoke-test phantom, shrink via overrides, e.g.:
+#   --set hidden_dim=256 num_layers=4 sigma=3 mapping_size=128 iters=800
+seed: 42
+device: cuda
+iso_mm: 1.0                # target isotropic spacing (used when there is no GT grid)
+pad_frac: 0.05             # padding of the normalization bounding box
+
+model: relu_ffn            # relu_mlp | relu_ffn | relu_pos_enc | siren_mlp
+hidden_dim: 512
+num_layers: 6
+sigma: 6.0                 # Fourier-feature sigma (relu_ffn); >8 hurt on BraTS
+mapping_size: 256          # number of Fourier features
+num_freqs: 10              # positional-encoding bands (relu_pos_enc)
+omega: 30.0                # SIREN omega
+
+# optimization
+iters: 4000
+batch_per_stack: 8192
+lr: 1.0e-3                 # Adam / aux-Adam learning rate
+muon_lr: 1.0e-2            # Muon learning rate (hidden weights)
+weight_decay: 0.0
+muon_weight_decay: 0.0
+scheduler: cosine          # cosine | none
+
+# intensity normalization (raw MRI values -> ~[0,1])
+normalize_stacks: global   # global | per_stack | none  (per_stack for real multi-scanner)
+normalize_q: 0.99
+
+# logging / inference
+log_every: 200
+infer_chunk: 262144        # voxels per inference forward pass (memory guard)
+foreground_only: true

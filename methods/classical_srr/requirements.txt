@@ -1,0 +1,6 @@
+# Classical LS-SRR baseline (CPU / scipy). No torch or Muon required.
+numpy
+scipy
+nibabel
+scikit-image
+pyyaml

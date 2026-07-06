@@ -1,0 +1,22 @@
+# Default multi-stack simulation: 3 orthogonal stacks, 1mm in-plane / 2mm thick,
+# anisotropic Gaussian PSF (through-plane FWHM = thickness), rigid inter-stack
+# motion (+/-3mm, +/-6deg), Rician noise. NeSVoR adult-brain regime.
+in_plane_mm: 1.0
+thickness_mm: 5.0   # 5mm slices (5x through-plane anisotropy) -- realistic clinical regime
+snr: 20.0            # Rician SNR (signal-mean / noise-sigma); 0 disables noise
+
+psf:
+  mode: gaussian    # 'gaussian' (NeSVoR) or 'delta' (IREM sampling-only)
+  n_through: 7      # PSF samples along slice-select direction
+  n_in: 1           # in-plane PSF samples (1 = ignore in-plane blur)
+  extent_sigma: 1.5 # sample out to +/- this many sigma
+
+motion:
+  enabled: true
+  max_rot_deg: 6.0
+  max_trans_mm: 3.0
+
+stacks:
+  - {orientation: axial}
+  - {orientation: coronal}
+  - {orientation: sagittal}

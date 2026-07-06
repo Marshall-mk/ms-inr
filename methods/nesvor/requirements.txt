@@ -1,0 +1,8 @@
+# NeSVoR adapter. The adapter itself needs only the msinr deps below; NeSVoR
+# and tiny-cuda-nn are installed separately (see README.md) and provide the
+# `nesvor` CLI this adapter shells out to.
+numpy
+scipy
+nibabel
+scikit-image
+pyyaml

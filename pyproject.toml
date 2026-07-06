@@ -1,0 +1,28 @@
+[project]
+name = "ms-inr"
+version = "0.1.0"
+description = "Rank-optimized (Muon) Implicit Neural Representations for multi-stack super-resolution reconstruction of adult MRI, with baselines and compute benchmarking."
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "scipy",
+    "nibabel",
+    "scikit-image",
+    "pyyaml",
+    "pandas",
+    "matplotlib",
+    "tqdm",
+    # torch is provided by the `dev` conda env (aarch64 cu13 build) -- do NOT pip-install here.
+    # muon: install separately with
+    #   pip install "git+https://github.com/KellerJordan/Muon"
+]
+
+[project.optional-dependencies]
+perceptual = ["lpips"]
+tracking = ["wandb"]
+
+[tool.setuptools.packages.find]
+include = ["msinr*"]
+
+[tool.ruff]
+line-length = 100
