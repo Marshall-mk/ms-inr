@@ -14,6 +14,8 @@ from .data.dataset import recon_grid_from_stacks
 def reconstruct_trilinear(stacks, gt: Volume | None, cfg: dict) -> ReconResult:
     grid = GridSpec.from_volume(gt) if gt is not None \
         else recon_grid_from_stacks(stacks, iso_mm=cfg.get("iso_mm", 1.0))
+    from .common.roi import maybe_crop_to_roi
+    grid, _ = maybe_crop_to_roi(grid, cfg)     # restrict to brain ROI if given
     mode = cfg.get("normalize_stacks", "global")
 
     prof = Profiler("cpu")

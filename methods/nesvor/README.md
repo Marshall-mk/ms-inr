@@ -4,9 +4,18 @@ Adapter around the official [NeSVoR](https://github.com/daviddmc/NeSVoR) CLI
 (Xu et al., IEEE TMI 2023). Defensive: if the `nesvor` command is not on PATH,
 the run is recorded as **skipped** and the benchmark continues.
 
-## Install on this box (GB10 / ARM64 / Blackwell)
-The prebuilt Docker image (`junshenxu/nesvor`, x86_64 + CUDA 11.7) does **not**
-work here. Build from source:
+## On the HPC server (x86_64 + A30) — recommended
+The A30 nodes are x86_64/Ampere, so the **official Docker image works** via
+Singularity/Apptainer (no root needed). Just run the orchestration script from the
+repo root — it pulls `docker://junshenxu/nesvor`, wraps it as a `nesvor` CLI on PATH,
+runs this adapter per subject into `results/africai/brats_5mm`, and re-aggregates:
+```bash
+sbatch run_nesvor.sh          # pre-pull on a login node if compute nodes are offline
+```
+
+## On the GB10 dev box (ARM64 / Blackwell) — from source
+The prebuilt Docker image (x86_64 + CUDA 11.7) does **not** work on ARM/Blackwell.
+Build from source:
 1. Ensure the `dev` env has aarch64 PyTorch cu12.8+ (already present: torch 2.12 / cu13).
 2. Build tiny-cuda-nn from master with the Blackwell arch:
    ```bash

@@ -68,11 +68,22 @@ def reconstruct_inr(stacks, gt: Volume | None, cfg: dict, optimizer: str,
     # target grid + shared coordinate frame
     grid = GridSpec.from_volume(gt) if gt is not None \
         else recon_grid_from_stacks(stacks, iso_mm=cfg.get("iso_mm", 1.0))
+
+    # optional brain ROI: crop the grid to the brain bbox (concentrates the
+    # normalizer/frequency budget on the brain) and drop non-brain samples.
+    roi = None
+    if cfg.get("roi_mask"):
+        from .common import io as _io
+        from .common.roi import crop_grid_to_mask
+        roi = _io.load_volume(cfg["roi_mask"], name="roi")
+        grid = crop_grid_to_mask(grid, roi, margin_mm=cfg.get("roi_margin_mm", 8.0))
+
     normalizer = CoordNormalizer.from_grid(grid.shape, grid.affine,
                                            pad_frac=cfg.get("pad_frac", 0.05))
 
     stack_tensors = prepare_stack_tensors(
-        stacks, device=device, foreground_only=cfg.get("foreground_only", True))
+        stacks, device=device, foreground_only=cfg.get("foreground_only", True),
+        roi_mask=roi)
     # normalize intensities to ~[0,1] so the phantom-tuned optimization transfers
     # to raw-valued MRI; rescale the reconstruction back afterwards.
     intensity_scale = normalize_stack_tensors(

@@ -37,7 +37,31 @@ def reconstruct(method, stacks, cfg):
         return reconstruct_classical(stacks, None, cfg).volume
     if method == "trilinear":
         return reconstruct_trilinear(stacks, None, cfg).volume
+    if method == "nesvor":
+        return _nesvor_reconstruct(stacks, cfg)
     raise ValueError(f"unknown method {method}")
+
+
+def _nesvor_reconstruct(stacks, cfg):
+    """Run the NeSVoR CLI (must be on PATH, e.g. via run_nesvor.sh's wrapper) on
+    temp NIfTIs of the training stacks and return the reconstructed Volume."""
+    import shutil, subprocess, tempfile
+    if shutil.which("nesvor") is None:
+        raise RuntimeError("nesvor not on PATH (run under run_nesvor.sh's wrapper)")
+    tmp = tempfile.mkdtemp(prefix="loso_nesvor_")
+    try:
+        files = []
+        for i, st in enumerate(stacks):
+            p = os.path.join(tmp, f"stack_{i:02d}.nii.gz")
+            mio.save_stack(st, p)
+            files.append(p)
+        out = os.path.join(tmp, "recon.nii.gz")
+        subprocess.run(["nesvor", "reconstruct", "--input-stacks", *files,
+                        "--output-volume", out,
+                        "--output-resolution", str(cfg.get("iso_mm", 1.0))], check=True)
+        return mio.load_volume(out, name="recon_nesvor")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def _p99_norm(x):
@@ -49,7 +73,7 @@ def main():
     ap = argparse.ArgumentParser(description="Leave-one-stack-out evaluation (no GT).")
     ap.add_argument("--stacks", required=True)
     ap.add_argument("--method", required=True,
-                    choices=["inr_muon", "inr_adam", "classical", "trilinear"])
+                    choices=["inr_muon", "inr_adam", "classical", "trilinear", "nesvor"])
     ap.add_argument("--config", default="configs/default.yaml")
     ap.add_argument("--out", required=True)
     ap.add_argument("--set", nargs="*", default=[], metavar="k=v")

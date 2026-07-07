@@ -24,3 +24,9 @@ wandb/
 # os
 .DS_Store
 .claude/
+.apptainer_cache
+nesvor.sif
+.nesvor_bin/
+synthstrip.sif
+data/nigerian_reg/*/brain_mask.nii.gz
+data/nigerian_reg/*/_roiref.nii.gz

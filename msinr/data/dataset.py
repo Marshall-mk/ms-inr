@@ -43,7 +43,9 @@ def _psf_from_meta(stack: Stack, psf_override: dict | None):
 
 
 def prepare_stack_tensors(stacks: list[Stack], device="cuda", dtype=torch.float32,
-                          foreground_only: bool = True, psf_override: dict | None = None):
+                          foreground_only: bool = True, psf_override: dict | None = None,
+                          roi_mask=None):
+    from ..common.roi import mask_at_world
     out = []
     for st in stacks:
         shape = st.shape
@@ -54,6 +56,9 @@ def prepare_stack_tensors(stacks: list[Stack], device="cuda", dtype=torch.float3
             keep = vals > 0
             vox, vals = vox[keep], vals[keep]
         world = apply_affine(st.affine, vox)
+        if roi_mask is not None:                    # keep only brain samples
+            inside = mask_at_world(roi_mask, world)
+            world, vals = world[inside], vals[inside]
         off, w = _psf_from_meta(st, psf_override)
         out.append(StackTensors(
             coords_world=torch.as_tensor(world, dtype=dtype, device=device),

@@ -93,6 +93,8 @@ def build_operator(stacks, grid: GridSpec, foreground_only=True, psf_override=No
 def reconstruct_classical(stacks, gt: Volume | None, cfg: dict) -> ReconResult:
     grid = GridSpec.from_volume(gt) if gt is not None \
         else recon_grid_from_stacks(stacks, iso_mm=cfg.get("iso_mm", 1.0))
+    from .common.roi import maybe_crop_to_roi
+    grid, _ = maybe_crop_to_roi(grid, cfg)     # restrict to brain ROI if given
     lam = float(cfg.get("reg_lambda", 1e-1))
     maxiter = int(cfg.get("cg_maxiter", 200))
     tol = float(cfg.get("cg_tol", 1e-5))

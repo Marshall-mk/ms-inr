@@ -12,9 +12,12 @@ import os
 
 import yaml
 
+import numpy as np
+
 from .common import io as mio
-from .common.contracts import Volume, ReconResult
+from .common.contracts import Volume, GridSpec, ReconResult
 from .common.metrics import all_metrics
+from .common.resample import resample_to_grid
 
 
 def base_argparser(description: str) -> argparse.ArgumentParser:
@@ -70,7 +73,11 @@ def finalize(result: ReconResult, gt: Volume | None, out: str,
     os.makedirs(out, exist_ok=True)
     if gt is not None:
         mask = mio.brain_mask(gt)
-        result.metrics = all_metrics(result.volume.data, gt.data, mask)
+        # a ROI-cropped recon has a different grid than GT -> resample onto GT for metrics
+        recon = result.volume
+        if recon.shape != gt.shape or not np.allclose(recon.affine, gt.affine):
+            recon = resample_to_grid(recon, GridSpec.from_volume(gt))
+        result.metrics = all_metrics(recon.data, gt.data, mask)
     mio.save_volume(result.volume, os.path.join(out, recon_name))
     result.save_sidecars(os.path.join(out, "metrics.json"),
                          os.path.join(out, "profile.json"))
