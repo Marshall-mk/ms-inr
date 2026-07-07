@@ -80,9 +80,13 @@ def build_operator(stacks, grid: GridSpec, foreground_only=True, psf_override=No
         ys.append(obs)
         s0 += world.shape[0]
     S = s0
-    A = sp.coo_matrix((np.concatenate(vals),
-                       (np.concatenate(rows), np.concatenate(cols))),
-                      shape=(S, V)).tocsr()
+    # int32 indices + float32 values roughly halve peak memory (matters for the
+    # large 512^2 real stacks, which otherwise OOM). V and nnz both fit in int32.
+    r = np.concatenate(rows).astype(np.int32); rows.clear()
+    c = np.concatenate(cols).astype(np.int32); cols.clear()
+    v = np.concatenate(vals).astype(np.float32); vals.clear()
+    A = sp.coo_matrix((v, (r, c)), shape=(S, V)).tocsr()
+    del r, c, v
     return A, np.concatenate(ys)
 
 
@@ -102,7 +106,7 @@ def reconstruct_classical(stacks, gt: Volume | None, cfg: dict) -> ReconResult:
     scale = float(np.percentile(y, 99)) if cfg.get("normalize_stacks", "global") != "none" else 1.0
     scale = scale if scale > 1e-8 else 1.0
     y = y / scale
-    At = A.T.tocsr()
+    At = A.T                       # CSC view sharing A's data (no extra copy)
     rhs = At @ y
     H = LinearOperator((V, V), matvec=lambda x: At @ (A @ x) + lam * x, dtype=np.float64)
 

@@ -21,8 +21,9 @@ from msinr.common import io as mio
 
 
 def _orthoviews(vol):
-    X, Y, Z = vol.shape
-    return [np.rot90(vol[X // 2, :, :]), np.rot90(vol[:, Y // 2, :]), vol[:, :, Z // 2]]
+    d = vol.data
+    X, Y, Z = d.shape
+    return [np.rot90(d[X // 2, :, :]), np.rot90(d[:, Y // 2, :]), d[:, :, Z // 2]]
 
 
 def main():
@@ -51,8 +52,7 @@ def main():
     if not cols:
         raise SystemExit("no reconstructions found")
     ncol = len(cols)
-    fig, axes = plt.subplots(3, ncol, figsize=(3 * ncol, 9))
-    axes = np.atleast_2d(axes)
+    fig, axes = plt.subplots(3, ncol, figsize=(3 * ncol, 9), squeeze=False)
     for c, (title, views) in enumerate(cols):
         for r in range(3):
             ax = axes[r, c]

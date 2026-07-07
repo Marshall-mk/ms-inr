@@ -5,10 +5,8 @@ results/
 #   - simulated stacks (simulate_batch.py)  - phantom  - registered copies
 data/phantom/
 data/nigerian_reg/
-data/**/stack_*.nii.gz
-data/**/stack_*.json
-# NOTE: source data IS tracked and transfers with the repo:
-#   data/brats/<ID>/gt.nii.gz, data/nigerian/<sub>/*.nii.gz + sidecars, subjects.txt
+data/nigerian/
+data/brats/
 
 # python
 __pycache__/
