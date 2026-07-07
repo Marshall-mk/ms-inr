@@ -30,3 +30,4 @@ nesvor.sif
 synthstrip.sif
 data/nigerian_reg/*/brain_mask.nii.gz
 data/nigerian_reg/*/_roiref.nii.gz
+.apptainer_tmp
