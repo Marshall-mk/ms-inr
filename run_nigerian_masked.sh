@@ -19,10 +19,11 @@
 # Results -> results/africai/nigerian_masked/. Logs -> /users/<user>/nigmask_<jobid>.out
 #   sbatch run_nigerian_masked.sh        # from the repo root
 # ---------------------------------------------------------------------------
+# HPC module loads are optional (guarded) so this also runs on a personal machine.
 module load cuda 2>/dev/null || true
-module load anaconda3/2022.10-gcc-13.2.0
-source "$(conda info --base)/etc/profile.d/conda.sh"; conda activate dev
+module load anaconda3/2022.10-gcc-13.2.0 2>/dev/null || true
 module load apptainer 2>/dev/null || module load singularity 2>/dev/null || true
+source "$(conda info --base)/etc/profile.d/conda.sh"; conda activate "${CONDA_ENV:-dev}"
 
 set -u; shopt -s nullglob; export PYTHONUNBUFFERED=1
 cd "${MSINR_ROOT:-${SLURM_SUBMIT_DIR:-$(cd "$(dirname "$0")" && pwd)}}" || { echo "FATAL cd"; exit 1; }
@@ -73,7 +74,7 @@ for d in "$NIG_ROOT"/sub*/; do
     echo "== $s / $m (ROI) =="
     if [ "${m#inr_}" != "$m" ]; then
       python methods/$m/run.py --stacks "$NIG_ROOT/$s" --out "$out" \
-        --config configs/default.yaml --set $SET roi_mask="$mask" $AMP_SET || true
+        --config configs/real_lowfield.yaml --set roi_mask="$mask" $AMP_SET || true
     elif [ "$m" = "classical_srr" ]; then
       python methods/classical_srr/run.py --stacks "$NIG_ROOT/$s" --out "$out" \
         --set $SET roi_mask="$mask" reg_lambda=0.05 cg_maxiter=200 || true

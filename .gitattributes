@@ -1,0 +1,14 @@
+# Force text files to LF on checkout so shell scripts run under WSL/Linux even
+# when the repo is checked out on Windows (core.autocrlf). Prevents the CRLF
+# ($'\r') errors in *.sh.
+* text=auto eol=lf
+
+# explicit binaries (never touch line endings)
+*.nii binary
+*.nii.gz binary
+*.sif binary
+*.png binary
+*.jpg binary
+*.wav binary
+*.pt binary
+*.pth binary

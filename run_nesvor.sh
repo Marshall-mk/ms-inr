@@ -21,10 +21,11 @@
 #   module load apptainer 2>/dev/null || module load singularity
 #   apptainer pull nesvor.sif docker://junshenxu/nesvor:latest
 # ---------------------------------------------------------------------------
+# HPC module loads are optional (guarded) so this also runs on a personal machine.
 module load cuda 2>/dev/null || true
-module load anaconda3/2022.10-gcc-13.2.0
-source "$(conda info --base)/etc/profile.d/conda.sh"; conda activate dev
+module load anaconda3/2022.10-gcc-13.2.0 2>/dev/null || true
 module load apptainer 2>/dev/null || module load singularity 2>/dev/null || true
+source "$(conda info --base)/etc/profile.d/conda.sh"; conda activate "${CONDA_ENV:-dev}"
 
 set -u; shopt -s nullglob; export PYTHONUNBUFFERED=1
 cd "${MSINR_ROOT:-${SLURM_SUBMIT_DIR:-$(cd "$(dirname "$0")" && pwd)}}" || { echo "FATAL cd"; exit 1; }
@@ -64,14 +65,28 @@ fi
   || echo "WARN: 'nesvor --help' failed in container (continuing; per-subject runs may still work)"
 
 # --- wrapper so methods/nesvor/run.py finds `nesvor` on PATH --------------
+# On WSL the NVIDIA libs live in /usr/lib/wsl/lib, which --nv doesn't auto-bind.
+WSL_ARGS=""
+if [ -d /usr/lib/wsl/lib ]; then
+  WSL_ARGS="--bind /usr/lib/wsl:/usr/lib/wsl"
+  export SINGULARITYENV_LD_LIBRARY_PATH="/usr/lib/wsl/lib:${SINGULARITYENV_LD_LIBRARY_PATH:-}"
+  export APPTAINERENV_LD_LIBRARY_PATH="$SINGULARITYENV_LD_LIBRARY_PATH"
+fi
 mkdir -p .nesvor_bin
 cat > .nesvor_bin/nesvor <<EOF
 #!/bin/bash
-exec $CRT exec --nv --bind "$PWD:$PWD" --pwd "$PWD" "$SIF" nesvor "\$@"
+exec $CRT exec --nv $WSL_ARGS --bind "$PWD:$PWD" --pwd "$PWD" "$SIF" nesvor "\$@"
 EOF
 chmod +x .nesvor_bin/nesvor
 export PATH="$PWD/.nesvor_bin:$PATH"
 echo "nesvor wrapper -> $(command -v nesvor)"
+
+# fail fast if the GPU isn't reachable inside the container
+if ! "$CRT" exec --nv $WSL_ARGS "$SIF" python -c "import torch,sys; sys.exit(0 if torch.cuda.is_available() else 1)" 2>/dev/null; then
+  echo "WARN: CUDA not available inside the container. If host 'nvidia-smi' works this is the"
+  echo "      WSL lib-bind issue; otherwise this machine has no usable GPU -> run on the HPC"
+  echo "      (scp nesvor.sif to the cluster and sbatch run_nesvor.sh there)."
+fi
 
 # ===== BraTS simulated (with GT) — NeSVoR into the brats_5mm tables ========
 if [ "$DO_BRATS" = true ]; then

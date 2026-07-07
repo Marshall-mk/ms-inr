@@ -40,6 +40,11 @@ compile: false             # torch.compile is SLOWER on GB10 (few SMs -> Inducto
 normalize_stacks: global   # global | per_stack | none  (per_stack for real multi-scanner)
 normalize_q: 0.99
 
+# real-data intensity/robustness (mostly for low-field data; off for simulated)
+bias_field: none           # none | gain | poly  (per-stack multiplicative bias model)
+bias_degree: 2             # polynomial degree for bias_field=poly
+clamp_min: 0.0             # clamp INR output >= this (MRI is non-negative); set null to disable
+
 # logging / inference
 log_every: 200
 infer_chunk: 262144        # voxels per inference forward pass (memory guard)

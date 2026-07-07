@@ -60,6 +60,10 @@ def main():
     res = cfg.get("output_resolution", cfg.get("iso_mm", 1.0))
     cmd = ["nesvor", "reconstruct", "--input-stacks", *stack_files,
            "--output-volume", out_vol, "--output-resolution", str(res)]
+    # For simulated data the stack affines are already correct, so NeSVoR must NOT
+    # re-register (its fetal-trained SVoRT mangles adult stacks and moves the output
+    # out of the GT frame). Default to 'none'; use 'svort'/'stack' for real data.
+    cmd += ["--registration", str(cfg.get("nesvor_registration", "none"))]
     if "nesvor_extra" in cfg:
         cmd += str(cfg["nesvor_extra"]).split()
 

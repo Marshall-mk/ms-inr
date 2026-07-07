@@ -19,9 +19,8 @@ methods:
   - name: trilinear
     run: methods/trilinear/run.py
     set: {}
-  - name: nesvor
-    run: methods/nesvor/run.py
-    set: {output_resolution: 1.0}
+  # NeSVoR is run separately via run_nesvor.sh (it needs the Singularity wrapper +
+  # --registration none), and merges into this same results dir.
 
 subjects:
   - {name: BraTS2021_00000, stacks: data/brats/BraTS2021_00000, gt: data/brats/BraTS2021_00000/gt.nii.gz}

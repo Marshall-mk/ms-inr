@@ -39,11 +39,16 @@ def split_muon_params(model):
 
 def build_optimizer(model, optimizer: str = "muon", *, lr: float = 1e-2,
                     muon_lr: float = 1e-1, weight_decay: float = 0.0,
-                    muon_weight_decay: float = 0.0):
-    """Build the optimizer. ``optimizer`` in {"muon", "adam"}."""
+                    muon_weight_decay: float = 0.0, extra_adam_params=None):
+    """Build the optimizer. ``optimizer`` in {"muon", "adam"}.
+
+    ``extra_adam_params`` (e.g. bias-field params) are always optimized with Adam.
+    """
+    extra = list(extra_adam_params or [])
     optimizer = optimizer.lower()
     if optimizer == "adam":
-        return torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+        return torch.optim.Adam(list(model.parameters()) + extra, lr=lr,
+                                weight_decay=weight_decay)
 
     if optimizer == "muon":
         try:
@@ -60,8 +65,8 @@ def build_optimizer(model, optimizer: str = "muon", *, lr: float = 1e-2,
         groups = [
             dict(params=muon_params, use_muon=True, lr=muon_lr,
                  weight_decay=muon_weight_decay),
-            dict(params=adam_params, use_muon=False, lr=lr, betas=(0.9, 0.999),
-                 weight_decay=weight_decay),
+            dict(params=adam_params + extra, use_muon=False, lr=lr,
+                 betas=(0.9, 0.999), weight_decay=weight_decay),
         ]
         return SingleDeviceMuonWithAuxAdam(groups)
 

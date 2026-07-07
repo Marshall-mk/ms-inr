@@ -55,3 +55,11 @@ def mask_at_world(mask: Volume, world_pts: np.ndarray) -> np.ndarray:
     vals = map_coordinates(mask.data.astype(np.float32), vox.T, order=0,
                            mode="constant", cval=0.0)
     return vals > 0.5
+
+
+def mask_on_grid(grid: GridSpec, roi_mask: Volume) -> np.ndarray:
+    """Boolean brain mask sampled onto ``grid`` (shape grid.shape) so a recon can be
+    zeroed outside the brain -> output is the masked region only."""
+    from .geometry import voxel_grid_world
+    world = voxel_grid_world(grid.shape, grid.affine)
+    return mask_at_world(roi_mask, world).reshape(grid.shape)

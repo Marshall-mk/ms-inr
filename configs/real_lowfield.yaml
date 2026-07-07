@@ -1,0 +1,45 @@
+# Real low-field data (Nigerian) reconstruction config.
+# Real 0.3T/1.5T scans are NOISY and have inter-stack intensity (bias-field) disagreement.
+# Muon's high-frequency/high-rank bias, an asset on clean simulated data, fits that noise
+# here -> the output goes grainy. So for real data we deliberately REGULARIZE and lower the
+# effective resolution vs configs/default.yaml (which stays tuned for clean simulated BraTS):
+#   - lower Fourier sigma (3 vs 6)         -> fewer high frequencies
+#   - weight decay on all weights          -> smoother field
+#   - per-stack bias-field model           -> absorbs inter-stack intensity mismatch
+#   - looser ROI crop (roi_margin_mm=15)   -> don't over-concentrate the normalizer (which
+#                                             raises effective frequency -> amplifies noise)
+#   - clamp output >= 0                    -> MRI is non-negative; removes negative speckles
+seed: 42
+device: cuda
+iso_mm: 1.0
+pad_frac: 0.05
+roi_margin_mm: 15
+
+model: relu_ffn
+hidden_dim: 512
+num_layers: 6
+sigma: 3.0
+mapping_size: 256
+num_freqs: 10
+omega: 30.0
+
+iters: 3000
+batch_per_stack: 8192
+lr: 1.0e-3
+muon_lr: 1.0e-2
+weight_decay: 1.0e-4
+muon_weight_decay: 1.0e-4
+scheduler: cosine
+
+normalize_stacks: per_stack
+normalize_q: 0.99
+
+bias_field: poly
+bias_degree: 2
+clamp_min: 0.0
+
+amp: false
+compile: false
+log_every: 500
+infer_chunk: 262144
+foreground_only: true

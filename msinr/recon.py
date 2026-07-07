@@ -98,10 +98,20 @@ def reconstruct_inr(stacks, gt: Volume | None, cfg: dict, optimizer: str,
         omega=cfg.get("omega", 30.0),
         mapping_size=cfg.get("mapping_size", 128)).to(device)
 
+    # optional per-stack bias-field model (real low-field data): absorbs inter-stack
+    # intensity disagreement so the field f doesn't fit it as noise.
+    bias = None
+    bias_mode = cfg.get("bias_field", "none")
+    if bias_mode != "none":
+        from .models.bias import PerStackBias
+        bias = PerStackBias(len(stack_tensors), degree=cfg.get("bias_degree", 2),
+                            mode=bias_mode).to(device)
+
     opt = build_optimizer(
         model, optimizer, lr=cfg.get("lr", 1e-3), muon_lr=cfg.get("muon_lr", 1e-2),
         weight_decay=cfg.get("weight_decay", 0.0),
-        muon_weight_decay=cfg.get("muon_weight_decay", 0.0))
+        muon_weight_decay=cfg.get("muon_weight_decay", 0.0),
+        extra_adam_params=(bias.parameters() if bias is not None else None))
 
     iters = cfg.get("iters", 3000)
     sched = None
@@ -137,7 +147,11 @@ def reconstruct_inr(stacks, gt: Volume | None, cfg: dict, optimizer: str,
             batch = sampler.sample()
             with amp_ctx():
                 preds = fwd.predict_batch(field, [(c, o, w) for c, o, w, _ in batch])
-                loss = sum(F.mse_loss(p, t) for p, (_, _, _, t) in zip(preds, batch))
+                loss = 0.0
+                for i, (p, (coords, _, _, t)) in enumerate(zip(preds, batch)):
+                    if bias is not None:            # y_k ~= exp(b_k(p)) * PSF(f)
+                        p = bias.factor(i, fwd.to_norm(coords)) * p
+                    loss = loss + F.mse_loss(p, t)
                 loss = loss / len(stack_tensors)
             loss.backward()
             opt.step()
@@ -151,12 +165,19 @@ def reconstruct_inr(stacks, gt: Volume | None, cfg: dict, optimizer: str,
         recon = sample_field_on_grid(model, normalizer, grid, device,
                                      chunk=cfg.get("infer_chunk", 262144))
     recon = recon * intensity_scale     # back to input intensity units
+    clamp_min = cfg.get("clamp_min", None)
+    if clamp_min is not None:           # MRI is non-negative; removes negative speckles
+        recon = np.clip(recon, float(clamp_min), None)
+    if roi is not None:                 # output only the brain-masked region
+        from .common.roi import mask_on_grid
+        recon = recon * mask_on_grid(grid, roi)
 
     prof.add("num_parameters", count_parameters(model))
     prof.add("num_iters", iters)
     prof.add("intensity_scale", intensity_scale)
     prof.add("amp_bf16", use_amp)
     prof.add("torch_compile", use_compile)
+    prof.add("bias_field", bias_mode)
     prof.throughput("inference", int(np.prod(grid.shape)), key="infer_voxels_per_s")
     prof.add("history", history)
 

@@ -14,10 +14,11 @@
 # results under results/ (bring these back for paper writing). Adjust the knobs
 # below and the SBATCH partition/time to your cluster. See docs/AFRICAI_EXPERIMENTS.md.
 # ---------------------------------------------------------------------------
-module load cuda
-module load anaconda3/2022.10-gcc-13.2.0
+# HPC module loads are optional (guarded) so this also runs on a personal machine.
+module load cuda 2>/dev/null || true
+module load anaconda3/2022.10-gcc-13.2.0 2>/dev/null || true
 source "$(conda info --base)/etc/profile.d/conda.sh"
-conda activate dev
+conda activate "${CONDA_ENV:-dev}"
 
 # ---- ensure required deps (install only if missing) ----------------------
 python -c "import muon" 2>/dev/null || pip install --quiet "git+https://github.com/KellerJordan/Muon"
@@ -138,7 +139,7 @@ for d in "$NIG_ROOT"/sub*/; do
     out="results/africai/nigerian/$s/$m"
     if [ "${m#inr_}" != "$m" ]; then
       python methods/$m/run.py --stacks "$NIG_ROOT/$s" --out "$out" \
-        --config configs/default.yaml --set $NIG_SET $AMP_SET || true
+        --config configs/real_lowfield.yaml --set $NIG_SET $AMP_SET || true
     elif [ "$m" = "classical_srr" ]; then
       python methods/classical_srr/run.py --stacks "$NIG_ROOT/$s" --out "$out" \
         --set $NIG_SET reg_lambda=0.05 cg_maxiter=200 || true
@@ -157,7 +158,7 @@ run "E8 leave-one-stack-out (real quantitative) from $NIG_ROOT"
 for s in $NIG_3ORI; do
   for m in trilinear classical inr_adam inr_muon; do
     python scripts/leave_one_stack_out.py --stacks "$NIG_ROOT/$s" --method "$m" \
-      --config configs/default.yaml --set $NIG_SET $AMP_SET \
+      --config configs/real_lowfield.yaml --set $NIG_SET $AMP_SET \
       --out "results/africai/loso/${s}_${m}" \
       2>&1 | tee -a results/africai/logs/e8_loso.log || true
   done

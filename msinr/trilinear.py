@@ -15,7 +15,7 @@ def reconstruct_trilinear(stacks, gt: Volume | None, cfg: dict) -> ReconResult:
     grid = GridSpec.from_volume(gt) if gt is not None \
         else recon_grid_from_stacks(stacks, iso_mm=cfg.get("iso_mm", 1.0))
     from .common.roi import maybe_crop_to_roi
-    grid, _ = maybe_crop_to_roi(grid, cfg)     # restrict to brain ROI if given
+    grid, roi = maybe_crop_to_roi(grid, cfg)   # restrict to brain ROI if given
     mode = cfg.get("normalize_stacks", "global")
 
     prof = Profiler("cpu")
@@ -31,6 +31,9 @@ def reconstruct_trilinear(stacks, gt: Volume | None, cfg: dict) -> ReconResult:
             acc[m] += rs[m]
             cnt[m] += 1.0
     recon = np.where(cnt > 0, acc / np.maximum(cnt, 1.0), 0.0).astype(np.float32)
+    if roi is not None:                        # output only the brain-masked region
+        from .common.roi import mask_on_grid
+        recon = recon * mask_on_grid(grid, roi)
 
     prof.sections["inference"] = {"seconds": 0.0}
     prof.add("num_parameters", 0)
