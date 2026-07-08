@@ -82,6 +82,20 @@ def test_load_stacks_dir_excludes_gt(tmp_path=None):
     assert len(names) == 1
 
 
+def test_intensity_matching():
+    """A scaled+shifted GT must score ~perfect after affine alignment, poor without."""
+    from msinr.common.metrics import all_metrics
+    rng = np.random.default_rng(0)
+    gt = rng.uniform(0, 1000, (24, 24, 24)).astype(np.float32)
+    mask = np.ones(gt.shape, bool)
+    pred = 0.3 * gt + 50.0                       # arbitrary intensity scale (like NeSVoR)
+    m_aff = all_metrics(pred, gt, mask, match="affine")
+    m_none = all_metrics(pred, gt, mask, match="none")
+    assert m_aff["psnr"] > 60 and m_aff["psnr"] > m_none["psnr"] + 20, (m_aff, m_none)
+    # NCC is scale-invariant -> ~1 regardless of matching
+    assert m_aff["ncc"] > 0.999 and abs(m_aff["ncc"] - m_none["ncc"]) < 1e-6
+
+
 def test_classical_operator_matches_simulation():
     """A_k applied to the GT grid should approximate the simulated observations."""
     vol = _phantom(24)

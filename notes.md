@@ -127,6 +127,11 @@ were **grainy (high-freq noise), not blurry** (blur would indicate under-capacit
 ## 11. Methodology (for the methods section)  **[METHOD]**
 - Metrics are brain-masked; ROI-cropped recons are resampled onto the GT grid before scoring.
 - Simulated stacks are strictly held separate from the GT volume (GT is never an input).
+- **Intensity alignment before scale-dependent metrics:** reconstructions are on arbitrary
+  intensity scales (esp. NeSVoR, which normalizes + models a bias field), so PSNR/SSIM/NRMSE
+  are computed **after a least-squares affine alignment `a·pred+b` to GT within the brain mask**
+  (`match_intensity: affine`). NCC is affine-invariant and uses the raw recon. Without this,
+  a structurally-perfect but differently-scaled recon scores near-zero PSNR (demonstrated).
 
 ## 12. Open items before writing  **[TODO]**
 - [ ] Clean **full re-run on the server** with the current pipeline (ROI mask+output-mask,

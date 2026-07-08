@@ -56,6 +56,30 @@ def ncc(pred, gt, mask=None) -> float:
     return float((a * b).sum() / denom)
 
 
+def align_intensity(pred, gt, mask, mode: str = "affine"):
+    """Intensity-align ``pred`` to ``gt`` within ``mask`` before scale-dependent metrics.
+
+    Reconstruction intensities are on arbitrary scales (esp. NeSVoR, which normalizes
+    + models a bias field), so PSNR/SSIM/NRMSE are only fair after aligning. Least
+    squares over the mask:
+      - 'affine': a*pred + b   (corrects gain + offset; standard "PSNR after alignment")
+      - 'scale' : a*pred       (gain only)
+      - 'none'  : unchanged
+    NCC needs no alignment (it is affine-invariant).
+    """
+    p, g = pred[mask], gt[mask]
+    if mode == "none" or p.size == 0:
+        return pred
+    if mode == "scale":
+        denom = float((p * p).sum())
+        a = float((p * g).sum()) / denom if denom > 0 else 1.0
+        return pred * a
+    pm, gm = float(p.mean()), float(g.mean())          # affine
+    var = float(((p - pm) ** 2).mean())
+    a = float(((p - pm) * (g - gm)).mean()) / var if var > 0 else 1.0
+    return pred * a + (gm - a * pm)
+
+
 def ssim(pred, gt, mask=None, dr: float | None = None) -> float:
     """3D SSIM; if a mask is given, the SSIM map is averaged inside the mask."""
     pred, gt, mask = _prep(pred, gt, mask)
@@ -67,15 +91,19 @@ def ssim(pred, gt, mask=None, dr: float | None = None) -> float:
     return float(ssim_map[mask].mean())
 
 
-def all_metrics(pred, gt, mask=None) -> dict:
-    """All quality metrics as a dict; NaN-safe if inputs mismatch."""
+def all_metrics(pred, gt, mask=None, match: str = "affine") -> dict:
+    """All quality metrics as a dict. ``pred`` is intensity-aligned to ``gt`` (mode
+    ``match``) before the scale-dependent metrics so methods on arbitrary intensity
+    scales (e.g. NeSVoR) compare fairly; NCC uses the raw ``pred`` (affine-invariant)."""
     pred, gt, mask = _prep(pred, gt, mask)
+    pred_a = align_intensity(pred, gt, mask, match)
     dr = data_range(gt, mask)
     return {
-        "psnr": psnr(pred, gt, mask, dr),
-        "ssim": ssim(pred, gt, mask, dr),
-        "nrmse": nrmse(pred, gt, mask),
+        "psnr": psnr(pred_a, gt, mask, dr),
+        "ssim": ssim(pred_a, gt, mask, dr),
+        "nrmse": nrmse(pred_a, gt, mask),
         "ncc": ncc(pred, gt, mask),
         "n_mask_voxels": int(mask.sum()),
         "data_range": dr,
+        "intensity_match": match,
     }

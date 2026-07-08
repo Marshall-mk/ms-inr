@@ -45,6 +45,10 @@ bias_field: none           # none | gain | poly  (per-stack multiplicative bias 
 bias_degree: 2             # polynomial degree for bias_field=poly
 clamp_min: 0.0             # clamp INR output >= this (MRI is non-negative); set null to disable
 
+# metrics: align recon intensity to GT before PSNR/SSIM/NRMSE (fair across methods on
+# arbitrary scales, e.g. NeSVoR). affine | scale | none. NCC is invariant regardless.
+match_intensity: affine
+
 # logging / inference
 log_every: 200
 infer_chunk: 262144        # voxels per inference forward pass (memory guard)

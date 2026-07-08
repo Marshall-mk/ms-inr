@@ -85,7 +85,8 @@ def main():
     if gt is not None:
         # NeSVoR chooses its own grid -> resample onto the GT grid for metrics
         rs = resample_to_grid(result.volume, GridSpec.from_volume(gt))
-        result.metrics = all_metrics(rs.data, gt.data, mio.brain_mask(gt))
+        result.metrics = all_metrics(rs.data, gt.data, mio.brain_mask(gt),
+                                     match=cfg.get("match_intensity", "affine"))
     result.save_sidecars(os.path.join(args.out, "metrics.json"),
                          os.path.join(args.out, "profile.json"))
     runner._print_summary(result)

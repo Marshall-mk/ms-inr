@@ -77,7 +77,8 @@ def finalize(result: ReconResult, gt: Volume | None, out: str,
         recon = result.volume
         if recon.shape != gt.shape or not np.allclose(recon.affine, gt.affine):
             recon = resample_to_grid(recon, GridSpec.from_volume(gt))
-        result.metrics = all_metrics(recon.data, gt.data, mask)
+        result.metrics = all_metrics(recon.data, gt.data, mask,
+                                     match=result.config.get("match_intensity", "affine"))
     mio.save_volume(result.volume, os.path.join(out, recon_name))
     result.save_sidecars(os.path.join(out, "metrics.json"),
                          os.path.join(out, "profile.json"))
