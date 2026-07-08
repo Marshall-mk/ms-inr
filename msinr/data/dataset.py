@@ -24,6 +24,7 @@ class StackTensors:
     offsets_world: torch.Tensor  # (M,3)
     weights: torch.Tensor        # (M,)
     name: str
+    norm_scale: float = 1.0      # p99 over FULL foreground (mask-independent)
 
 
 def _psf_from_meta(stack: Stack, psf_override: dict | None):
@@ -44,7 +45,7 @@ def _psf_from_meta(stack: Stack, psf_override: dict | None):
 
 def prepare_stack_tensors(stacks: list[Stack], device="cuda", dtype=torch.float32,
                           foreground_only: bool = True, psf_override: dict | None = None,
-                          roi_mask=None):
+                          roi_mask=None, normalize_q: float = 0.99):
     from ..common.roi import mask_at_world
     out = []
     for st in stacks:
@@ -55,6 +56,9 @@ def prepare_stack_tensors(stacks: list[Stack], device="cuda", dtype=torch.float3
         if foreground_only:
             keep = vals > 0
             vox, vals = vox[keep], vals[keep]
+        # normalization reference over the FULL foreground, BEFORE ROI masking, so the
+        # intensity scale does not depend on whether/how we mask.
+        norm_scale = float(np.percentile(vals, 100 * normalize_q)) if vals.size else 1.0
         world = apply_affine(st.affine, vox)
         if roi_mask is not None:                    # keep only brain samples
             inside = mask_at_world(roi_mask, world)
@@ -65,7 +69,7 @@ def prepare_stack_tensors(stacks: list[Stack], device="cuda", dtype=torch.float3
             values=torch.as_tensor(vals, dtype=dtype, device=device),
             offsets_world=torch.as_tensor(off, dtype=dtype, device=device),
             weights=torch.as_tensor(w, dtype=dtype, device=device),
-            name=st.name))
+            name=st.name, norm_scale=max(norm_scale, 1e-8)))
     return out
 
 
@@ -85,17 +89,17 @@ def normalize_stack_tensors(stack_tensors, mode: str = "global", q: float = 0.99
 
     - 'global':    divide all stacks by a shared percentile (simulated data from one
                    source -> stacks share an intensity scale). Output rescaled back.
-    - 'per_stack': divide each stack by its own percentile (real multi-scanner data
-                   with differing scales). Output stays in normalized units (1.0).
+    - 'per_stack': divide each stack by its own ``norm_scale`` (the FULL-foreground p99,
+                   computed before ROI masking -> mask-independent). Output units (1.0).
     - 'none':      no change.
     """
     if mode == "none":
         return 1.0
     if mode == "per_stack":
         for s in stack_tensors:
-            s.values = s.values / _quantile(s.values, q)
+            s.values = s.values / s.norm_scale       # mask-independent (see prepare)
         return 1.0
-    # global
+    # global (used for unmasked simulated data; no ROI -> already mask-independent)
     allv = torch.cat([s.values for s in stack_tensors])
     scale = _quantile(allv, q)
     for s in stack_tensors:

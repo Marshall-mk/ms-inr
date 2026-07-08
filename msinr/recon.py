@@ -58,6 +58,26 @@ def _rank_snapshot(model) -> dict:
     }
 
 
+def _save_normalized_inputs(stacks, stack_tensors, roi, out_dir):
+    """Dump each stack exactly as the model fits it: divided by its (mask-independent)
+    norm_scale, plus a brain-masked copy if an ROI is used. If these have full T2
+    contrast but the recon does not, the problem is the model, not the input."""
+    import os
+    from .common import io as _io
+    from .common.roi import mask_at_world
+    os.makedirs(out_dir, exist_ok=True)
+    for st, t in zip(stacks, stack_tensors):
+        norm = (st.data / t.norm_scale).astype(np.float32)
+        _io.save_volume(Volume(norm, st.affine, st.name + "_norm"),
+                        os.path.join(out_dir, f"{st.name}_norm.nii.gz"))
+        if roi is not None:
+            world = voxel_grid_world(st.shape, st.affine)
+            inside = mask_at_world(roi, world).reshape(st.shape)
+            _io.save_volume(Volume(norm * inside, st.affine, st.name + "_norm_masked"),
+                            os.path.join(out_dir, f"{st.name}_norm_masked.nii.gz"))
+    print(f"[debug] saved normalized inputs -> {out_dir}")
+
+
 def reconstruct_inr(stacks, gt: Volume | None, cfg: dict, optimizer: str,
                     device: str | None = None) -> ReconResult:
     device = device or cfg.get("device", "cuda")
@@ -83,12 +103,16 @@ def reconstruct_inr(stacks, gt: Volume | None, cfg: dict, optimizer: str,
 
     stack_tensors = prepare_stack_tensors(
         stacks, device=device, foreground_only=cfg.get("foreground_only", True),
-        roi_mask=roi)
+        roi_mask=roi, normalize_q=cfg.get("normalize_q", 0.99))
     # normalize intensities to ~[0,1] so the phantom-tuned optimization transfers
     # to raw-valued MRI; rescale the reconstruction back afterwards.
     intensity_scale = normalize_stack_tensors(
         stack_tensors, mode=cfg.get("normalize_stacks", "global"),
         q=cfg.get("normalize_q", 0.99))
+    # debug: dump the exact normalized (+ masked) inputs the model fits, so we can tell
+    # whether a contrast issue comes from the input pipeline or the model.
+    if cfg.get("debug_inputs_dir"):
+        _save_normalized_inputs(stacks, stack_tensors, roi, cfg["debug_inputs_dir"])
     sampler = MultiStackSampler(stack_tensors, cfg.get("batch_per_stack", 4096))
 
     model = build_inr(
