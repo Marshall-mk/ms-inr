@@ -63,6 +63,10 @@ def load_inputs(args):
     stacks = mio.load_stacks_dir(args.stacks)
     if not stacks:
         raise FileNotFoundError(f"No .nii/.nii.gz stacks found in {args.stacks}")
+    # print the loaded stacks so any contamination (e.g. a mask/reference ingested as
+    # a fake stack) is immediately obvious in the logs.
+    print(f"[inputs] {len(stacks)} stacks from {args.stacks}: "
+          + ", ".join(f"{s.name}{tuple(s.shape)}" for s in stacks))
     gt = mio.load_volume(args.gt, name="gt") if args.gt else None
     return stacks, gt
 

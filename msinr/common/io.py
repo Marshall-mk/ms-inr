@@ -59,18 +59,20 @@ def load_stack(path: str, name: str | None = None) -> Stack:
 
 
 def load_stacks_dir(stacks_dir: str) -> list[Stack]:
-    """Load the stack NIfTIs in a directory as Stacks (sorted by name).
+    """Load the acquired stack NIfTIs in a directory as Stacks (sorted by name).
 
-    Excludes the ground-truth volume (``gt.nii[.gz]``) and any reconstruction
-    output (``recon*.nii[.gz]``) so the GT can safely live alongside the stacks
-    without leaking into the observations.
+    Excludes non-stack files that may live alongside the stacks so they never leak
+    into the observations: the ground truth (``gt``), reconstruction outputs
+    (``recon*``), pipeline helpers prefixed with ``_`` (e.g. ``_roiref`` from the
+    masking pipeline), and any mask (name containing ``mask``, e.g. ``brain_mask``).
     """
     files = []
     for f in os.listdir(stacks_dir):
         if not f.endswith((".nii", ".nii.gz")):
             continue
         stem = _stem(f).lower()
-        if stem == "gt" or stem.startswith("recon"):
+        if (stem == "gt" or stem.startswith("recon") or stem.startswith("_")
+                or "mask" in stem):
             continue
         files.append(f)
     files.sort()

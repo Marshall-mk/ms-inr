@@ -51,7 +51,11 @@ def main():
 
     stack_files = sorted(glob.glob(os.path.join(args.stacks, "*.nii.gz"))
                          + glob.glob(os.path.join(args.stacks, "*.nii")))
-    stack_files = [f for f in stack_files if os.path.basename(f) != "gt.nii.gz"]
+    def _is_stack(p):                       # same exclusions as io.load_stacks_dir
+        s = os.path.basename(p).split(".nii")[0].lower()
+        return not (s == "gt" or s.startswith("recon") or s.startswith("_") or "mask" in s)
+    stack_files = [f for f in stack_files if _is_stack(f)]
+    print(f"[nesvor] input stacks: {[os.path.basename(f) for f in stack_files]}")
     if not stack_files:
         _skip(args.out, f"no stacks in {args.stacks}")
         return

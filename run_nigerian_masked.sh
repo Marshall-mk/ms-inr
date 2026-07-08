@@ -53,13 +53,16 @@ echo "Nigerian root: $NIG_ROOT ($n subjects)"; [ "$n" -eq 0 ] && exit 1
 
 for d in "$NIG_ROOT"/sub*/; do
   s=$(basename "$d")
-  ref="$NIG_ROOT/$s/_roiref.nii.gz"
-  mask="$NIG_ROOT/$s/brain_mask.nii.gz"
+  # helper files go in an aux dir under results, NEVER in the stack dir (else
+  # load_stacks_dir would ingest them as fake input stacks).
+  aux="$RES/$s/aux"; mkdir -p "$aux"
+  ref="$aux/roiref.nii.gz"
+  mask="$aux/brain_mask.nii.gz"
 
   # 1. isotropic reference for stripping (unmasked trilinear)
   if [ ! -f "$ref" ]; then
-    python methods/trilinear/run.py --stacks "$NIG_ROOT/$s" --out "$NIG_ROOT/$s/_roitmp" \
-      --set $SET && cp "$NIG_ROOT/$s/_roitmp/recon.nii.gz" "$ref"
+    python methods/trilinear/run.py --stacks "$NIG_ROOT/$s" --out "$aux/roitmp" \
+      --set $SET && cp "$aux/roitmp/recon.nii.gz" "$ref"
   fi
   # 2. brain mask via SynthStrip
   if [ ! -f "$mask" ]; then
@@ -86,6 +89,6 @@ for d in "$NIG_ROOT"/sub*/; do
   # 4. qualitative panel
   python scripts/qualitative_figure.py --results-dir "$RES/$s" --stacks "$NIG_ROOT/$s" \
     --methods trilinear classical_srr inr_adam inr_muon --out "$RES/qual_${s}.png" || true
-  rm -rf "$NIG_ROOT/$s/_roitmp"
+  rm -rf "$aux/roitmp"
 done
 echo "Brain-ROI Nigerian reconstruction complete -> $RES"

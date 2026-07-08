@@ -63,14 +63,14 @@ def test_simulation_shapes_and_affines():
         assert st.data.max() > 0
 
 
-def test_load_stacks_dir_excludes_gt(tmp_path=None):
-    """Regression: gt.nii.gz / recon*.nii.gz must NOT be loaded as input stacks."""
+def test_load_stacks_dir_excludes_nonstacks(tmp_path=None):
+    """Regression: gt / recon* / _roiref / *mask* must NOT be loaded as input stacks."""
     import os, tempfile
     from msinr.common import io as mio
     d = tempfile.mkdtemp()
     vol = _phantom(16)
-    mio.save_volume(vol, os.path.join(d, "gt.nii.gz"))
-    mio.save_volume(vol, os.path.join(d, "recon.nii.gz"))
+    for junk in ["gt.nii.gz", "recon.nii.gz", "_roiref.nii.gz", "brain_mask.nii.gz"]:
+        mio.save_volume(vol, os.path.join(d, junk))
     from msinr.data.simulate import simulate
     cfg = {"in_plane_mm": 1.0, "thickness_mm": 2.0, "snr": 0.0,
            "psf": {"mode": "gaussian", "n_through": 3, "n_in": 1},
@@ -78,8 +78,9 @@ def test_load_stacks_dir_excludes_gt(tmp_path=None):
     for i, st in enumerate(simulate(vol, cfg, seed=0)):
         mio.save_stack(st, os.path.join(d, f"stack_{i:02d}_{st.name}.nii.gz"))
     names = [s.name for s in mio.load_stacks_dir(d)]
-    assert "gt" not in names and not any(n.startswith("recon") for n in names), names
-    assert len(names) == 1
+    assert len(names) == 1, names
+    for bad in ["gt", "recon", "_roiref", "brain_mask"]:
+        assert not any(bad in n for n in names), (bad, names)
 
 
 def test_intensity_matching():
