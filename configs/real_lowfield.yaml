@@ -14,6 +14,9 @@ device: cuda
 iso_mm: 1.0
 pad_frac: 0.05
 roi_margin_mm: 15
+roi_crop: true             # true: crop grid to brain bbox (focuses capacity, but the
+                           # normalizer->brain reshaping raises the recon floor/compresses
+                           # contrast). false: mask samples+output but keep the full grid.
 
 model: relu_ffn
 hidden_dim: 512
