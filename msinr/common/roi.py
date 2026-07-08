@@ -46,6 +46,8 @@ def maybe_crop_to_roi(grid: GridSpec, cfg: dict):
         return grid, None
     from . import io as _io
     roi = _io.load_volume(cfg["roi_mask"], name="roi")
+    if not cfg.get("roi_crop", True):          # mask output but keep the full grid
+        return grid, roi
     return crop_grid_to_mask(grid, roi, margin_mm=cfg.get("roi_margin_mm", 8.0)), roi
 
 

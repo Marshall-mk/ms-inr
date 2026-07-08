@@ -96,7 +96,8 @@ def reconstruct_inr(stacks, gt: Volume | None, cfg: dict, optimizer: str,
         from .common import io as _io
         from .common.roi import crop_grid_to_mask
         roi = _io.load_volume(cfg["roi_mask"], name="roi")
-        grid = crop_grid_to_mask(grid, roi, margin_mm=cfg.get("roi_margin_mm", 8.0))
+        if cfg.get("roi_crop", True):   # crop grid to brain bbox -> normalizer spans brain
+            grid = crop_grid_to_mask(grid, roi, margin_mm=cfg.get("roi_margin_mm", 8.0))
 
     normalizer = CoordNormalizer.from_grid(grid.shape, grid.affine,
                                            pad_frac=cfg.get("pad_frac", 0.05))
