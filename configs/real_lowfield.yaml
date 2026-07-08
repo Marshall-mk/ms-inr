@@ -37,7 +37,7 @@ scheduler: cosine
 normalize_stacks: per_stack
 normalize_q: 0.99
 
-bias_field: poly
+bias_field: none
 bias_degree: 2
 clamp_min: 0.0
 
