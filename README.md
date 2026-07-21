@@ -14,6 +14,7 @@ tracked** for every method.
 | **INR + Muon** (proposed) | `methods/inr_muon` | Rank-optimized INR SRR |
 | INR + Adam (ablation) | `methods/inr_adam` | Same INR, Adam — isolates Muon's effect |
 | Classical LS-SRR | `methods/classical_srr` | CG least-squares, same PSF operator |
+| Trilinear | `methods/trilinear` | Interpolation-only lower bound |
 | NeSVoR (optional) | `methods/nesvor` | Official INR SVR CLI; auto-skips if absent |
 
 Every method shares one **contract**: input = a dir of stack NIfTIs (+ optional GT
@@ -59,12 +60,40 @@ Point `--input` (simulation) at any isotropic HR NIfTI, or add a subject to a
 acquisitions (no GT, e.g. `configs/experiment/nigerian.yaml`) work too — metrics
 are simply omitted.
 
+## Reconstructing with a brain mask (recommended for real data)
+There is no `--mask` flag; the mask is a config key, so pass it via `--set`:
+```bash
+python methods/inr_muon/run.py \
+  --stacks data/nigerian_reg/sub01 --out results/sub01/muon_masked \
+  --config configs/real_lowfield.yaml \
+  --set roi_mask=/abs/path/to/brain_mask.nii.gz roi_crop=true
+```
+`roi_mask` does three things: crops the recon grid to the mask bbox +
+`roi_margin_mm`, drops non-brain samples from the training loss, and zeroes the
+output outside the brain. `roi_crop=false` keeps the full grid but still filters
+samples and masks the output. Works identically for `inr_adam`, `classical_srr`,
+and `trilinear`. **NeSVoR ignores it** — mask its `recon.nii.gz` afterwards.
+
+Two rules that cost us real debugging time:
+- **Keep the mask (and any reference volume) OUT of the stacks dir** — put them in
+  a sibling `aux/`. `load_stacks_dir` excludes `gt` / `recon*` / `_*` / `*mask*`,
+  but anything else in there is ingested as a real stack and corrupts the recon.
+- **Check the `[inputs] N stacks from ...` line** printed at the start of every
+  run; it lists exactly what was loaded.
+
+No mask yet? Derive one from a trilinear reference:
+```bash
+python methods/trilinear/run.py --stacks data/nigerian_reg/sub01 --out aux/ref \
+  --set normalize_stacks=per_stack iso_mm=1.0
+apptainer exec synthstrip.sif mri_synthstrip -i aux/ref/recon.nii.gz -m aux/brain_mask.nii.gz
+```
+
 ## Layout
 ```
 msinr/       core library (common/, data/, forward/, models/, recon.py, classical.py)
 methods/     isolated per-method entry points (run.py + README + requirements)
 benchmark/   run_benchmark.py + aggregate.py
-configs/     default.yaml (reconstruction), simulate/, experiment/ (brats, nigerian)
+configs/     default.yaml (simulated), real_lowfield.yaml (real), simulate/, experiment/
 scripts/     make_phantom, prep_brats, prep_nigerian, simulate_batch, compare_figure
 tests/       fast CPU sanity tests
 ```
